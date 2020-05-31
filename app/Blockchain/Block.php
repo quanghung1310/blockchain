@@ -3,32 +3,45 @@ namespace App\Blockchain;
 
 class Block
 {
-    public $previous;
-    public $nonce;
+    public $transactions;
+    public $timestamp;
+    public $previousHash;
     public $hash;
-    public $transaction;
+    private $nonce = 0;
 
-    public function __construct(Transaction $transaction, ?self $previous)
+    public function __construct($transactions, $timestamp, $previousHash = '')
     {
-        $this->previous = $previous ? $previous->hash : null;
-        $this->transaction = $transaction;
-        $this->mine();
+        $this->transactions = $transactions;
+        $this->timestamp = $timestamp;
+        $this->previousHash = $previousHash;
+        $this->hash = $this->calculateHash();
     }
 
-    public static function createGenesis(string $pubKey, string $privKey, int $amount)
+    public function calculateHash()
     {
-        return new self(new Transaction(null, $pubKey, $amount, $privKey), null);
+        return hash('sha256', $this->previousHash.$this->timestamp.json_encode($this->transactions).$this->nonce);
     }
 
-    public function mine()
+    public function mineBlock($difficult)
     {
-        $data = $this->transaction->message().$this->previous;
-        $this->nonce = PoW::findNonce($data);
-        $this->hash = PoW::hash($data.$this->nonce);
+        while (substr($this->hash, 0, $difficult) !== str_repeat('0', $difficult)) {
+            $this->nonce++;
+            $this->hash = $this->calculateHash();
+        }
+
+        \Log::info('Block mined: ', [$this->hash]);
     }
 
-    public function isValid():bool
+    public function hasValidTransactions()
     {
-        return PoW::isValidNonce($this->transaction->message().$this->previous, $this->nonce);
+        if (is_array($this->transactions)) {
+            foreach ($this->transactions as $transaction) {
+                if (!$transaction->isValid()) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 }

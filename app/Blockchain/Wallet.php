@@ -6,29 +6,36 @@ class Wallet
 {
     public static function generateKeyPair()
     {
-        $res = openssl_pkey_new([
-            'private_key_bits' => 4096,
+        $params = [
+            'private_key_bits' => 2048,
             'private_key_type' => OPENSSL_KEYTYPE_RSA,
-        ]);
+        ];
 
-        openssl_pkey_export($res, $private);
-        return [$private, openssl_pkey_get_details($res)['key']];
+        $res = openssl_pkey_new($params);
+        openssl_pkey_export($res, $privKey);
+
+        $pubKey = openssl_pkey_get_details($res);
+        $pubKey = $pubKey["key"];
+
+        openssl_free_key($res);
+
+        return ['private'=> $privKey, 'public'=> $pubKey, 'coin' => 100];
     }
 
-    public static function encrypt($mesage, $privKey)
+    public static function encrypt($data, $privateKey)
     {
-        openssl_private_encrypt($mesage, $crypted, $privKey);
-        return base64_encode($crypted);
+        openssl_private_encrypt($data, $encrypted, $privateKey);
+        return base64_encode($encrypted);
     }
 
-    public static function decrypt($crypted, $pubKey)
+    public static function decrypt($encrypted, $pubKey)
     {
-        openssl_public_decrypt(base64_decode($crypted), $decrypted, $pubKey);
+        openssl_public_decrypt(base64_decode($encrypted), $decrypted, $pubKey);
         return $decrypted;
     }
 
-    public static function isValid($message, $crypted, $pubKey): bool
+    public static function isValid($data, $encrypted, $pubKey): bool
     {
-        return $message == self::decrypt($crypted, $pubKey);
+        return $data == self::decrypt($encrypted, $pubKey);
     }
 }

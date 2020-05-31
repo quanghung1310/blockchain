@@ -15,4 +15,5 @@ Route::get('/', function() {
     return 'Welcome to ' . env('APP_NAME');
 });
 
-Route::get('/profile/{user}', 'WalletController@profile');
+Route::get('/create', 'WalletController@create');
+Route::get('/wallet/list', 'WalletController@listWallets');

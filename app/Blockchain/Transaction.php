@@ -9,17 +9,21 @@ class Transaction
     public $amount;
     public $signature;
 
-    public function __construct(?string $from, string $to, int $amount, string $privKey)
+    public function __construct(?string $from, string $to, int $amount)
     {
         $this->from = $from;
         $this->to = $to;
         $this->amount = $amount;
-        $this->signature = Wallet::encrypt($this->message(), $privKey);
     }
 
-    public function message()
+    public function calculateHash()
     {
-        return PoW::hash($this->from.$this->to.$this->amount);
+        return hash('sha256',$this->from.$this->to.$this->amount);
+    }
+
+    public function signTransaction($privateKey)
+    {
+        $this->signature = Wallet::encrypt($this->calculateHash(), $privateKey);
     }
 
     public function __toString()
@@ -29,6 +33,6 @@ class Transaction
 
     public function isValid()
     {
-        return !$this->from || Wallet::isValid($this->message(), $this->signature, $this->from);
+        return !$this->from || Wallet::isValid($this->calculateHash(), $this->signature, $this->from);
     }
 }

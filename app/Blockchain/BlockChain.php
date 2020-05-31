@@ -2,75 +2,102 @@
 
 namespace App\Blockchain;
 
-class BlockChain implements \Countable
+use Carbon\Carbon;
+use League\Flysystem\Exception;
+
+class BlockChain
 {
-
-    public $blocks = [];
-
-    public function __construct($pubKey, $privKey, $amount)
-    {
-        $this->blocks[] = Block::createGenesis($pubKey, $privKey, $amount);
-    }
+    /**
+     * @var Block[]
+     */
+    public $chain = [];
 
     /**
-     * @inheritDoc
+     * @var Transaction[]
      */
-    public function count()
+    public $pendingTransactions = [];
+
+    private $difficult = 1;
+
+    private $miningReward = 1;
+
+    public function __construct()
     {
-        return count($this->blocks);
+        $this->chain[] = $this->genesisBlock();
     }
 
-    public function add(Transaction $transaction)
+    protected function genesisBlock()
     {
-        $this->blocks[] = new Block($transaction, $this->blocks[count($this->blocks) - 1]->hash);
+        return new Block('Genesis block', Carbon::now()->format('Y-m-d'), '0');
     }
 
-    public function isValid(): bool
+    protected function getLatestBlock()
     {
-        foreach ($this->blocks as $i => $block) {
-            if (!$block->isValid()) {
-                return false;
-            }
+        return $this->chain[count($this->chain) - 1];
+    }
 
-            if ($i != 0 && $this->blocks[$i - 1]->hash != $block->previous) {
-                return false;
+    public function minePendingTransactions($miningRewardAddress)
+    {
+        $transaction = new Transaction(null, $miningRewardAddress, $this->miningReward);
+        $this->pendingTransactions[] = $transaction;
+        $block = new Block($this->pendingTransactions, Carbon::now()->format('Y-m-d'), $this->getLatestBlock()->hash);
+        $block->mineBlock($this->difficult);
+
+        $this->chain[] = $block;
+
+        $this->pendingTransactions = [];
+    }
+
+    public function addTransaction($transaction)
+    {
+        if (!$transaction->isValid()) {
+            abort(500, 'Cannot add invalid transaction');
+        }
+
+        $this->pendingTransactions[] = $transaction;
+    }
+
+    public function getBalanceOfAddress($address)
+    {
+        $balance = 0;
+
+        foreach ($this->chain as $block) {
+            if (is_array($block->transactions)) {
+                foreach ($block->transactions as $transaction)
+                {
+                    if ($transaction->from === $address) {
+                        $balance -= $transaction->amount;
+                    }
+
+                    if ($transaction->to === $address) {
+                        $balance += $transaction->amount;
+                    }
+                }
             }
         }
 
-        return $this->areSpendValid();
+        return $balance;
     }
 
-    private function areSpendValid()
+    public function isChainValid()
     {
-        foreach ($this->computeBalances() as $pubKey => $amount) {
-            if ($amount < 0) {
-                 return false;
+        for ($i = 1; $i < count($this->chain); $i++) {
+            $currentBlock = $this->chain[$i];
+            $previousBlock = $this->chain[$i - 1];
+
+            if (!$currentBlock->hasValidTransactions()) {
+                return false;
+            }
+
+            if ($currentBlock->previousHash !== $previousBlock->calculateHash()) {
+                return false;
+            }
+
+            if ($previousBlock->hash !== $previousBlock->calculateHash()) {
+                return false;
             }
         }
 
         return true;
-    }
-
-    public function computeBalances()
-    {
-        $genesisTransaction = $this->blocks[0]->transaction;
-        $balances = [$genesisTransaction->to => $genesisTransaction->amount];
-        foreach ($this->blocks as $i => $block) {
-            if (0 === $i) {
-                continue;
-            }
-
-            if (!isset($balances[$block->transaction->from])) {
-                $balances[$block->transaction->from] = 0;
-            }
-            $balances[$block->transaction->from] -= $block->transaction->amount;
-
-            if (!isset($balances[$block->transaction->to])) {
-                $balances[$block->transaction->to] = 0;
-            }
-            $balances[$block->transaction->to] += $block->transaction->to;
-        }
-
-        return $balances;
     }
 }
