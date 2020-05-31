@@ -3,7 +3,6 @@
 namespace App\Blockchain;
 
 use Carbon\Carbon;
-use League\Flysystem\Exception;
 
 class BlockChain
 {
@@ -23,15 +22,15 @@ class BlockChain
 
     public function __construct()
     {
-        $this->chain[] = $this->genesisBlock();
+
     }
 
-    protected function genesisBlock()
+    public function genesisBlock()
     {
-        return new Block('Genesis block', Carbon::now()->format('Y-m-d'), '0');
+        return $this->chain[] = new Block('Genesis block', Carbon::now()->format('Y-m-d'), '0', 0);
     }
 
-    protected function getLatestBlock()
+    public function getLatestBlock()
     {
         return $this->chain[count($this->chain) - 1];
     }
@@ -40,7 +39,7 @@ class BlockChain
     {
         $transaction = new Transaction(null, $miningRewardAddress, $this->miningReward);
         $this->pendingTransactions[] = $transaction;
-        $block = new Block($this->pendingTransactions, Carbon::now()->format('Y-m-d'), $this->getLatestBlock()->hash);
+        $block = new Block($this->pendingTransactions, Carbon::now()->format('Y-m-d'), $this->getLatestBlock()->hash, $this->getLatestBlock()->nonce);
         $block->mineBlock($this->difficult);
 
         $this->chain[] = $block;
@@ -99,5 +98,25 @@ class BlockChain
         }
 
         return true;
+    }
+
+    /**
+     * @param Block[] $chain
+     */
+    public function setChain(array $chain): void
+    {
+        foreach ($chain as $block) {
+            if (is_array($block['transactions'])) {
+                $tx = [];
+                foreach ($block['transactions'] as $transaction)
+                {
+                    $tx[] = new Transaction($transaction['from'], $transaction['to'], $transaction['amount'], $transaction['signature']);
+                }
+                \Log::info('', [$tx]);
+                $this->chain[] = new Block($tx, $block['timestamp'], $block['previousHash'], $block['nonce']);
+            } else {
+                $this->chain[] = new Block($block['transactions'], $block['timestamp'], $block['previousHash'], $block['nonce']);
+            }
+        }
     }
 }

@@ -9,8 +9,9 @@ use App\Blockchain\Wallet;
 class WalletController extends Controller
 {
     const db = 'wallets.json';
+    const dbTransaction = 'transactions.json';
 
-    public function readDB()
+    public function readWallet()
     {
         if (file_exists(self::db)) {
             $wallets = json_decode(file_get_contents(self::db), true);
@@ -19,38 +20,82 @@ class WalletController extends Controller
         return $wallets ?? [];
     }
 
+    public function readTransaction()
+    {
+        if (file_exists(self::dbTransaction)) {
+            $transactions = json_decode(file_get_contents(self::dbTransaction), true);
+        }
+
+        return $transactions ?? [];
+    }
+
     public function create()
     {
         $wallet = Wallet::generateKeyPair();
-        $db = $this->readDB();
+        $db = $this->readWallet();
         $db[] = $wallet;
         file_put_contents(self::db, json_encode($db));
-        $wallet2 = Wallet::generateKeyPair();
-        $db[] = $wallet2;
-        file_put_contents(self::db, json_encode($db));
-
-//
-//        return view('wallet', ['wallet' => $wallet]);
-        $coin = new BlockChain();
-        $tx1 = new Transaction($wallet2['public'], 'address2', 20);
-        $tx1->signTransaction($wallet2['private']);
-        $coin->addTransaction($tx1);
-
-        $tx2 = new Transaction($wallet['public'], $wallet2['public'], 30);
-        $tx2->signTransaction($wallet['private']);
-        $coin->addTransaction($tx2);
-
-        $coin->minePendingTransactions($wallet['public']);
-        \Log::info('Balance test: ', [$coin->getBalanceOfAddress($wallet['public'])]);
 
         return response()
-            ->json($coin);
+            ->json($wallet);
+    }
 
+    public function transaction()
+    {
+        $this->validate($this->request(), [
+            'from' => 'required',
+            'to' => 'required',
+            'amount' => 'required',
+        ]);
+        $from = $this->request()->get('from');
+        $to = $this->request()->get('to');
+        $amount = $this->request()->get('amount');
+
+        $db = $this->readWallet();
+
+        $private = null;
+
+        foreach ($db as $item) {
+            if ($item['public'] === $from) {
+                $private = $item['private'];
+            }
+            $wallet[] = $item;
+        }
+
+        if (is_null($private)) {
+            abort(400, 'Not found address');
+        }
+
+        $dbTransaction = $this->readTransaction();
+        if (empty($dbTransaction)) {
+            $coin = new BlockChain();
+            $coin->genesisBlock();
+        } else {
+            $coin = new BlockChain();
+            $coin->setChain($dbTransaction['chain']);
+        }
+
+        $tx1 = new Transaction($from, $to, $amount);
+        $tx1->signTransaction($private);
+        $coin->addTransaction($tx1);
+        $coin->minePendingTransactions('System');
+        $dbTransaction = $coin;
+
+        file_put_contents(self::dbTransaction, json_encode($dbTransaction));
+
+        return $this->readTransaction();
     }
 
     public function listWallets()
     {
+        $db = $this->readWallet();
+        $wallet = [];
+        foreach ($db as $item) {
+            unset($item['private']);
+            $wallet[] = $item;
+        }
+
         return response()
-            ->json();
+            ->json($wallet);
     }
 }

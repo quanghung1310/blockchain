@@ -7,14 +7,17 @@ class Block
     public $timestamp;
     public $previousHash;
     public $hash;
-    private $nonce = 0;
+    public $nonce;
 
-    public function __construct($transactions, $timestamp, $previousHash = '')
+    public function __construct($transactions, $timestamp,  $previousHash = '', $nonce = 0)
     {
         $this->transactions = $transactions;
         $this->timestamp = $timestamp;
         $this->previousHash = $previousHash;
+        $this->nonce = $nonce;
         $this->hash = $this->calculateHash();
+        \Log::info('Transaction: ', [$this->transactions]);
+        \Log::info('Hash: ', [$this->hash]);
     }
 
     public function calculateHash()

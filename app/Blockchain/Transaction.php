@@ -9,11 +9,12 @@ class Transaction
     public $amount;
     public $signature;
 
-    public function __construct(?string $from, string $to, int $amount)
+    public function __construct(?string $from, string $to, int $amount, string $signature = '')
     {
         $this->from = $from;
         $this->to = $to;
         $this->amount = $amount;
+        $this->signature = $signature;
     }
 
     public function calculateHash()
@@ -28,7 +29,7 @@ class Transaction
 
     public function __toString()
     {
-        return ($this->from ? substr($this->from, 72, 7) : 'NONE').'->'.substr($this->to, 72, 7);
+        return ($this->from ? substr($this->from, 72, 7) : 'NONE').'->'.$this->to;
     }
 
     public function isValid()
